@@ -1,0 +1,26 @@
+{
+  "name": "gifted-session",
+  "main": "./index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "pm2 start index.js --deep-monitoring --attach --name giftedsess",
+    "stop": "pm2 stop giftedsess",
+    "restart": "pm2 restart giftedsess"
+  },
+  "author": "Gifted Tech",
+  "license": "GPL-3.0 license",
+  "dependencies": {
+    "@whiskeysockets/baileys": "npm:baileys@6.7.21",
+    "bcryptjs": "^3.0.2",
+    "gifted-btns": "*",
+    "body-parser": "*",
+    "express": "*",
+    "fs": "*",
+    "path": "*",
+    "pino": "*",
+    "pino-pretty": "^13.0.0",
+    "pm2": "*",
+    "qrcode": "*",
+    "node-cache": "^5.1.2"
+  }
+}
