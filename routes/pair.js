@@ -1,20 +1,21 @@
-import makeWASocket, {
+const makeWASocket = require("@whiskeysockets/baileys").default;
+const {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
   DisconnectReason
-} from "@whiskeysockets/baileys";
-import NodeCache from "node-cache";
-import Pino from "pino";
-import fs from "fs";
-import path from "path";
+} = require("@whiskeysockets/baileys");
+const NodeCache = require("node-cache");
+const Pino = require("pino");
+const fs = require("fs");
+const path = require("path");
 
 const msgRetryCounterCache = new NodeCache();
 
 // Store bot states per session to prevent conflicts
 const botStates = new Map();
 
-export default async function pairHandler(req, res) {
+async function pairHandler(req, res) {
   try {
     const phoneNumber = req.query.phone;
     if (!phoneNumber) return res.status(400).send("Phone number required");
@@ -262,3 +263,5 @@ export default async function pairHandler(req, res) {
     });
   }
 }
+
+module.exports = pairHandler;
