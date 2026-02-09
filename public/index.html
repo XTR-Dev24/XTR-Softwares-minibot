@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buddy-XTR session site</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    :root {
+      --galaxy-dark: #0a0a20;
+      --galaxy-darker: #050510;
+      --galaxy-purple: #6a00ff;
+      --galaxy-blue: #00b4ff;
+      --galaxy-pink: #ff00f7;
+      --neon-text: #00f7ff;
+      --whatsapp-green: #25D366;
+      --whatsapp-dark-green: #128C7E;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    body {
+      background-color: var(--galaxy-darker);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      color: white;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Galaxy Background with Falling Stars */
+    .galaxy-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -2;
+      background: radial-gradient(ellipse at bottom, var(--galaxy-darker) 0%, #000000 100%);
+    }
+
+    .falling-stars {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+    }
+
+    .star {
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+      filter: drop-shadow(0 0 5px white);
+      animation: fall linear infinite;
+    }
+
+    @keyframes fall {
+      0% {
+        transform: translateY(-100px) rotate(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(100vh) rotate(360deg);
+        opacity: 0;
+      }
+    }
+
+    /* Main Container */
+    .container {
+      width: 100%;
+      max-width: 420px;
+      min-width: 320px;
+      padding: 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Galaxy Card */
+    .card {
+      width: 100%;
+      background: rgba(10, 10, 32, 0.85);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 
+        0 0 20px rgba(106, 0, 255, 0.3),
+        0 0 40px rgba(0, 180, 255, 0.2);
+      border: 1px solid rgba(106, 0, 255, 0.3);
+    }
+
+    .card-header {
+      background: linear-gradient(135deg, var(--galaxy-purple), var(--galaxy-blue));
+      padding: 20px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card-header::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: linear-gradient(
+        to bottom right,
+        transparent 0%,
+        transparent 45%,
+        rgba(255,255,255,0.1) 50%,
+        transparent 55%,
+        transparent 100%
+      );
+      animation: shine 4s infinite;
+    }
+
+    @keyframes shine {
+      0% { transform: rotate(0deg) translate(-30%, -30%); }
+      100% { transform: rotate(360deg) translate(-30%, -30%); }
+    }
+
+    .card-title {
+      font-size: clamp(1.4rem, 4vw, 1.7rem);
+      font-weight: 700;
+      margin-bottom: 5px;
+      background: linear-gradient(to right, #ffffff, var(--neon-text));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 10px rgba(0, 247, 255, 0.3);
+      letter-spacing: 1px;
+    }
+
+    .card-subtitle {
+      font-size: clamp(0.8rem, 3vw, 0.9rem);
+      opacity: 0.9;
+    }
+
+    .card-creator {
+      font-size: clamp(0.7rem, 2.5vw, 0.8rem);
+      opacity: 0.7;
+      margin-top: 5px;
+      color: var(--neon-text);
+    }
+
+    .card-body {
+      padding: clamp(15px, 5vw, 25px);
+    }
+
+    /* Input Group */
+    .input-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: clamp(0.9rem, 3vw, 1rem);
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 15px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(106, 0, 255, 0.3);
+      border-radius: 8px;
+      font-size: 1rem;
+      color: white;
+      transition: all 0.2s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--galaxy-blue);
+      box-shadow: 0 0 0 3px rgba(0, 180, 255, 0.2);
+    }
+
+    input::placeholder {
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    /* Buttons */
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 25px;
+    }
+
+    button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: clamp(0.9rem, 3vw, 1rem);
+      cursor: pointer;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .submit-btn {
+      background: var(--whatsapp-green);
+      color: white;
+    }
+
+    .submit-btn:hover {
+      background: var(--whatsapp-dark-green);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(37, 211, 102, 0.3);
+    }
+
+    .qr-btn {
+      background: var(--galaxy-purple);
+      color: white;
+    }
+
+    .qr-btn:hover {
+      background: var(--galaxy-blue);
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(106, 0, 255, 0.3);
+    }
+
+    /* Status Messages */
+    .status-message {
+      text-align: center;
+      margin: 15px 0;
+      min-height: 24px;
+      font-size: clamp(0.9rem, 3vw, 1rem);
+    }
+
+    .success {
+      color: var(--whatsapp-green);
+      text-shadow: 0 0 5px rgba(37, 211, 102, 0.3);
+    }
+
+    .error {
+      color: #ff4d4d;
+    }
+
+    .warning {
+      color: #ffcc00;
+    }
+
+    /* Result Container */
+    .result-container {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 20px;
+      text-align: center;
+      border: 1px solid rgba(106, 0, 255, 0.2);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .result-container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        135deg,
+        transparent 0%,
+        rgba(106, 0, 255, 0.1) 50%,
+        transparent 100%
+      );
+      animation: scan 4s linear infinite;
+    }
+
+    @keyframes scan {
+      0% { transform: translateY(-100%); }
+      100% { transform: translateY(100%); }
+    }
+
+    .code-display {
+      font-family: monospace;
+      font-size: clamp(1.2rem, 4vw, 1.4rem);
+      font-weight: 600;
+      color: var(--neon-text);
+      margin: 10px 0;
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-shadow: 0 0 5px rgba(0, 247, 255, 0.3);
+    }
+
+    .code-display:hover {
+      background: rgba(0, 0, 0, 0.4);
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      margin-top: 20px;
+      font-size: clamp(0.7rem, 2.5vw, 0.8rem);
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    /* Responsive Adjustments */
+    @media (max-width: 480px) {
+      .btn-group {
+        flex-direction: column;
+      }
+      
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="galaxy-bg"></div>
+  <div class="falling-stars" id="falling-stars"></div>
+
+  <div class="container">
+    <div class="card">
+      <div class="card-header">
+        <h1 class="card-title">WELCOME TO BUDDY-XTR SESSION SCANNER</h1>
+        <p class="card-subtitle">Enter your WhatsApp number with country code</p>
+        <p class="card-creator">By Carl24Tech</p>
+      </div>
+      
+      <div class="card-body">
+        <div class="input-group">
+          <label for="number">Phone Number (without +)</label>
+          <input type="number" id="number" name="number" placeholder="Example: 2541234589" required>
+        </div>
+        
+        <div id="status-message" class="status-message"></div>
+        
+        <div class="btn-group">
+          <button id="submit" class="submit-btn">
+            <i class="fas fa-paper-plane"></i> Submit
+          </button>
+          <button id="qr-scan" class="qr-btn">
+            <i class="fas fa-camera"></i> QR Scan
+          </button>
+        </div>
+        
+        <div class="result-container">
+          <div id="result-content">
+            <p>Your code will appear here</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer">
+      <p>Enter number without country code prefix (e.g. + or 00)</p>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.0.0-alpha.1/axios.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Create falling stars
+      const starsContainer = document.getElementById('falling-stars');
+      const starCount = 50;
+      
+      for (let i = 0; i < starCount; i++) {
+        const star = document.createElement('div');
+        star.classList.add('star');
+        
+        // Random properties
+        const size = Math.random() * 3 + 1;
+        const left = Math.random() * 100;
+        const delay = Math.random() * 5;
+        const duration = Math.random() * 10 + 5;
+        
+        star.style.width = `${size}px`;
+        star.style.height = `${size}px`;
+        star.style.left = `${left}%`;
+        star.style.animationDelay = `${delay}s`;
+        star.style.animationDuration = `${duration}s`;
+        
+        starsContainer.appendChild(star);
+      }
+
+      const numberInput = document.getElementById("number");
+      const submitBtn = document.getElementById("submit");
+      const qrScanBtn = document.getElementById("qr-scan");
+      const statusMessage = document.getElementById("status-message");
+      const resultContent = document.getElementById("result-content");
+      
+      // QR Scan Button
+      qrScanBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.open('qr', '_blank');
+      });
+      
+      async function copyToClipboard(text) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return true;
+        } catch (err) {
+          console.error('Failed to copy: ', err);
+          return false;
+        }
+      }
+      
+      function showStatus(message, type) {
+        statusMessage.textContent = message;
+        statusMessage.className = `status-message ${type}`;
+      }
+      
+      function clearStatus() {
+        statusMessage.textContent = '';
+        statusMessage.className = 'status-message';
+      }
+      
+      function formatPhoneNumber(number) {
+        const cleaned = number.replace(/[^0-9]/g, "");
+        return `+${cleaned}`;
+      }
+      
+      function showResult(code) {
+        if (code === "Service is Currently Unavailable") {
+          resultContent.innerHTML = `
+            <p class="error">
+              <i class="fas fa-exclamation-triangle"></i> ${code}
+            </p>
+          `;
+        } else {
+          resultContent.innerHTML = `
+            <p>Your verification code:</p>
+            <div id="code-display" class="code-display">
+              ${code}
+            </div>
+            <p><small>Click code to copy</small></p>
+          `;
+          
+          const codeDisplay = document.getElementById("code-display");
+          codeDisplay.addEventListener('click', async () => {
+            const originalText = codeDisplay.textContent;
+            const success = await copyToClipboard(code);
+            
+            if (success) {
+              codeDisplay.textContent = "Copied!";
+              setTimeout(() => {
+                codeDisplay.textContent = originalText;
+              }, 2000);
+            }
+          });
+        }
+      }
+
+      submitBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        clearStatus();
+        
+        if (!numberInput.value) {
+          showStatus("Please enter your WhatsApp number", "error");
+          return;
+        }
+        
+        const cleanedNumber = numberInput.value.replace(/[^0-9]/g, "");
+        
+        if (cleanedNumber.length < 11) {
+          showStatus("Invalid number format (too short)", "error");
+          return;
+        }
+        
+        numberInput.type = "text";
+        numberInput.value = formatPhoneNumber(cleanedNumber);
+        
+        showStatus("Generating code... Please wait", "warning");
+        resultContent.innerHTML = `
+          <div style="text-align: center;">
+            <i class="fas fa-spinner fa-spin"></i>
+          </div>
+        `;
+        
+        try {
+          const response = await axios.get(`/code?number=${cleanedNumber}`);
+          const code = response.data.code || "Service is Currently Unavailable";
+          
+          showStatus("Code generated successfully!", "success");
+          showResult(code);
+        } catch (error) {
+          console.error("Error:", error);
+          showStatus("Failed to generate code. Please try again.", "error");
+          showResult("Service is Currently Unavailable");
+        }
+      });
+      
+      numberInput.addEventListener('input', () => {
+        if (numberInput.type === 'text') {
+          numberInput.type = 'number';
+        }
+      });
+    });
+  </script>
+</body>
+</html>
