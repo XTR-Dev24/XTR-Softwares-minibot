@@ -11,17 +11,23 @@ const fs = require("fs");
 const path = require("path");
 
 const msgRetryCounterCache = new NodeCache();
-
-// Store bot states per session to prevent conflicts
 const botStates = new Map();
 
+/* ---------------- HELPERS ---------------- */
+function normalizePhone(phone) {
+  return phone.replace(/\D/g, "");
+}
+
+/* ---------------- MAIN HANDLER ---------------- */
 async function pairHandler(req, res) {
   try {
-    const phoneNumber = req.query.phone;
-    if (!phoneNumber) return res.status(400).send("Phone number required");
+    const phoneRaw = req.query.phone;
+    if (!phoneRaw) return res.status(400).send("Phone number required");
 
-    const SESSION_DIR = process.env.SESSION_DIR || 
-                       path.join(process.cwd(), "sessions");
+    const phoneNumber = normalizePhone(phoneRaw);
+
+    const SESSION_DIR =
+      process.env.SESSION_DIR || path.join(process.cwd(), "sessions");
 
     if (!fs.existsSync(SESSION_DIR)) {
       fs.mkdirSync(SESSION_DIR, { recursive: true });
@@ -38,23 +44,50 @@ async function pairHandler(req, res) {
       printQRInTerminal: false,
       auth: {
         creds: state.creds,
-        keys: makeCacheableSignalKeyStore(state.keys, Pino({ level: "silent" }))
+        keys: makeCacheableSignalKeyStore(
+          state.keys,
+          Pino({ level: "silent" })
+        )
       },
       msgRetryCounterCache
     });
 
-    // Send pairing code if not registered
+    /* ---------------- PAIRING CODE (FIXED) ---------------- */
     if (!state.creds.registered) {
-      try {
-        const code = await sock.requestPairingCode(phoneNumber);
-        return res.json({ code });
-      } catch (error) {
-        console.error("Pairing error:", error);
-        return res.status(500).json({ error: "Failed to get pairing code" });
-      }
+      let codeSent = false;
+
+      sock.ev.on("connection.update", async ({ connection }) => {
+        if (connection === "open" && !codeSent) {
+          codeSent = true;
+          try {
+            const code = await sock.requestPairingCode(phoneNumber);
+            if (!res.headersSent) {
+              return res.json({ code });
+            }
+          } catch (err) {
+            console.error("Pairing code error:", err);
+            if (!res.headersSent) {
+              return res
+                .status(500)
+                .json({ error: "Failed to generate pairing code" });
+            }
+          }
+        }
+      });
+
+      // Safety timeout
+      setTimeout(() => {
+        if (!codeSent && !res.headersSent) {
+          res
+            .status(504)
+            .json({ error: "Pairing timeout. Try again." });
+        }
+      }, 15000);
+
+      return;
     }
 
-    // Initialize bot state for this session if not exists
+    /* ---------------- BOT STATE ---------------- */
     if (!botStates.has(phoneNumber)) {
       botStates.set(phoneNumber, {
         autoView: false,
@@ -67,200 +100,162 @@ async function pairHandler(req, res) {
 
     const botState = botStates.get(phoneNumber);
 
-    // Initialize event listeners only once per socket
+    /* ---------------- MINIBOT LISTENERS ---------------- */
     if (!sock.__minibotStarted) {
       sock.__minibotStarted = true;
 
-      // Handle credentials update
       sock.ev.on("creds.update", saveCreds);
 
-      // Handle incoming messages
+      /* ---- MESSAGE HANDLER ---- */
       sock.ev.on("messages.upsert", async ({ messages, type }) => {
-        try {
-          if (type !== "notify") return;
-          const msg = messages[0];
-          if (!msg.message) return;
+        if (type !== "notify") return;
+        const msg = messages[0];
+        if (!msg?.message) return;
 
-          const jid = msg.key.remoteJid;
-          const messageId = msg.key.id;
+        const jid = msg.key.remoteJid;
+        const msgId = msg.key.id;
 
-          // Cache messages for anti-delete
-          if (botState.antiDelete && messageId) {
-            botState.messageCache.set(messageId, msg);
-            // Auto-clean cache after 5 minutes
-            setTimeout(() => {
-              botState.messageCache.delete(messageId);
-            }, 5 * 60 * 1000);
-          }
+        // Cache for anti-delete
+        if (botState.antiDelete && msgId) {
+          botState.messageCache.set(msgId, msg);
+          setTimeout(
+            () => botState.messageCache.delete(msgId),
+            5 * 60 * 1000
+          );
+        }
 
-          // Auto-view status
-          if (botState.autoView && jid === "status@broadcast") {
-            await sock.readMessages([msg.key]);
-            return;
-          }
+        // Auto view status
+        if (botState.autoView && jid === "status@broadcast") {
+          await sock.readMessages([msg.key]);
+          return;
+        }
 
-          // Skip group messages except for status and anti-delete
-          if (jid.endsWith("@g.us")) return;
+        if (jid.endsWith("@g.us")) return;
 
-          // Extract message text
-          const text = msg.message.conversation ||
-                      msg.message.extendedTextMessage?.text ||
-                      msg.message.imageMessage?.caption ||
-                      "";
+        const text =
+          msg.message.conversation ||
+          msg.message.extendedTextMessage?.text ||
+          msg.message.imageMessage?.caption ||
+          "";
 
-          if (!text.startsWith(".")) return;
+        if (!text.startsWith(".")) return;
 
-          const cmd = text.slice(1).toLowerCase().trim();
-          const args = text.slice(1).split(" ").slice(1);
-          const mainCmd = args.length > 0 ? cmd.split(" ")[0] : cmd;
+        const parts = text.slice(1).trim().split(/\s+/);
+        const cmd = parts.shift().toLowerCase();
+        const args = parts;
 
-          let reply = null;
+        let reply = null;
 
-          switch (mainCmd) {
-            case "ping":
-              reply = "pong ✅";
-              break;
-            case "help":
-              reply = `Available commands:\n` +
-                     `.ping - Test if bot is working\n` +
-                     `.autoview on|off - Toggle auto-view status\n` +
-                     `.autoreact on|off - Toggle auto-reaction\n` +
-                     `.reactemoji 😄 - Set reaction emoji\n` +
-                     `.antidelete on|off - Toggle anti-delete feature`;
-              break;
-            case "autoview":
-              const viewState = args[0]?.toLowerCase();
-              if (viewState === "on" || viewState === "off") {
-                botState.autoView = viewState === "on";
-                reply = `Auto View Status: ${botState.autoView ? "ON" : "OFF"}`;
-              } else {
-                reply = `Current Auto View Status: ${botState.autoView ? "ON" : "OFF"}\nUse: .autoview on|off`;
-              }
-              break;
-            case "autoreact":
-              const reactState = args[0]?.toLowerCase();
-              if (reactState === "on" || reactState === "off") {
-                botState.autoReact = reactState === "on";
-                reply = `Auto React: ${botState.autoReact ? "ON" : "OFF"}`;
-              } else {
-                reply = `Current Auto React: ${botState.autoReact ? "ON" : "OFF"}\nUse: .autoreact on|off`;
-              }
-              break;
-            case "reactemoji":
-              if (args[0]) {
-                botState.reactEmoji = args[0];
-                reply = `Reaction emoji set to ${botState.reactEmoji}`;
-              } else {
-                reply = `Current reaction emoji: ${botState.reactEmoji}\nUse: .reactemoji 😄`;
-              }
-              break;
-            case "antidelete":
-              const deleteState = args[0]?.toLowerCase();
-              if (deleteState === "on" || deleteState === "off") {
-                botState.antiDelete = deleteState === "on";
-                reply = `Anti Delete: ${botState.antiDelete ? "ON" : "OFF"}`;
-              } else {
-                reply = `Current Anti Delete: ${botState.antiDelete ? "ON" : "OFF"}\nUse: .antidelete on|off`;
-              }
-              break;
-          }
+        switch (cmd) {
+          case "ping":
+            reply = "pong ✅";
+            break;
 
-          if (reply) {
-            await sock.sendMessage(jid, { text: reply }, { quoted: msg });
-          }
-        } catch (error) {
-          console.error("Message processing error:", error);
+          case "help":
+            reply =
+              `.ping\n` +
+              `.autoview on|off\n` +
+              `.autoreact on|off\n` +
+              `.reactemoji 😄\n` +
+              `.antidelete on|off`;
+            break;
+
+          case "autoview":
+            botState.autoView = args[0] === "on";
+            reply = `Auto View Status: ${
+              botState.autoView ? "ON" : "OFF"
+            }`;
+            break;
+
+          case "autoreact":
+            botState.autoReact = args[0] === "on";
+            reply = `Auto React: ${
+              botState.autoReact ? "ON" : "OFF"
+            }`;
+            break;
+
+          case "reactemoji":
+            if (args[0]) {
+              botState.reactEmoji = args[0];
+              reply = `Reaction emoji set to ${botState.reactEmoji}`;
+            }
+            break;
+
+          case "antidelete":
+            botState.antiDelete = args[0] === "on";
+            reply = `Anti Delete: ${
+              botState.antiDelete ? "ON" : "OFF"
+            }`;
+            break;
+        }
+
+        if (reply) {
+          await sock.sendMessage(
+            jid,
+            { text: reply },
+            { quoted: msg }
+          );
         }
       });
 
-      // Auto react to messages
+      /* ---- AUTO REACT ---- */
       sock.ev.on("messages.upsert", async ({ messages }) => {
-        try {
-          const msg = messages[0];
-          if (!msg?.message || !botState.autoReact) return;
-          
-          const jid = msg.key.remoteJid;
-          
-          // Don't auto-react to group messages or status
-          if (jid.endsWith("@g.us") || jid === "status@broadcast") return;
-          
-          // Don't react to bot's own messages or commands
-          const text = msg.message.conversation || "";
-          if (text.startsWith(".")) return;
+        const msg = messages[0];
+        if (!msg?.message || !botState.autoReact) return;
 
-          await sock.sendMessage(jid, {
-            react: { 
-              key: msg.key, 
-              text: botState.reactEmoji 
-            }
-          });
-        } catch (error) {
-          console.error("Auto-react error:", error);
-        }
+        const jid = msg.key.remoteJid;
+        if (jid.endsWith("@g.us") || jid === "status@broadcast") return;
+
+        const text = msg.message.conversation || "";
+        if (text.startsWith(".")) return;
+
+        await sock.sendMessage(jid, {
+          react: { key: msg.key, text: botState.reactEmoji }
+        });
       });
 
-      // Anti-delete recovery
-      sock.ev.on("messages.update", async (updates) => {
-        try {
-          for (const update of updates) {
-            if (update.update?.status === 3) { // Message deleted
-              const messageId = update.key.id;
-              const cached = botState.messageCache.get(messageId);
-              
-              if (cached) {
-                const messageText = cached.message.conversation ||
-                                  cached.message.extendedTextMessage?.text ||
-                                  cached.message.imageMessage?.caption ||
-                                  "[Media message]";
-                
-                await sock.sendMessage(update.key.remoteJid, {
-                  text: `🛑 Deleted message recovered:\n\n${messageText}`
-                });
-                
-                // Remove from cache after recovery
-                botState.messageCache.delete(messageId);
-              }
-            }
+      /* ---- ANTI DELETE ---- */
+      sock.ev.on("messages.update", async updates => {
+        for (const u of updates) {
+          if (u.update?.status === 3) {
+            const cached = botState.messageCache.get(u.key.id);
+            if (!cached) continue;
+
+            const recovered =
+              cached.message.conversation ||
+              cached.message.extendedTextMessage?.text ||
+              cached.message.imageMessage?.caption ||
+              "[Media message]";
+
+            await sock.sendMessage(u.key.remoteJid, {
+              text: `🛑 Deleted message recovered:\n\n${recovered}`
+            });
+
+            botState.messageCache.delete(u.key.id);
           }
-        } catch (error) {
-          console.error("Anti-delete error:", error);
         }
       });
 
-      // Handle connection updates
+      /* ---- CONNECTION ---- */
       sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
-        if (connection === "close") {
-          const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== 
-                                DisconnectReason.loggedOut;
-          
-          if (shouldReconnect) {
-            console.log(`Reconnecting session: ${phoneNumber}`);
-            // Clean up old state
-            sock.__minibotStarted = false;
-            // Re-initialize after delay
-            setTimeout(() => {
-              pairHandler(req, res);
-            }, 5000);
-          } else {
-            // Clean up on logout
-            botStates.delete(phoneNumber);
-            console.log(`Session logged out: ${phoneNumber}`);
-          }
+        if (
+          connection === "close" &&
+          lastDisconnect?.error?.output?.statusCode ===
+            DisconnectReason.loggedOut
+        ) {
+          botStates.delete(phoneNumber);
         }
       });
     }
 
-    res.json({ 
+    res.json({
       status: "Bot connected & running",
       phone: phoneNumber,
-      registered: state.creds.registered
+      registered: true
     });
-  } catch (error) {
-    console.error("Pair handler error:", error);
-    res.status(500).json({ 
-      error: "Internal server error", 
-      details: error.message 
-    });
+  } catch (err) {
+    console.error("Pair handler error:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 }
 
